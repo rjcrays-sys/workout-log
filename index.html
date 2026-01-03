@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Workout Log</title>
+    <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#007AFF">
+
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+
 
 <style>
 body {
@@ -12,39 +19,49 @@ body {
     margin: 0;
     padding: 16px;
 }
+
 h1 {
     text-align: center;
 }
+
 .card {
     background: white;
     padding: 12px;
     margin-bottom: 12px;
     border-radius: 10px;
+    overflow: hidden;
 }
+
 input, button {
     width: 100%;
+    box-sizing: border-box;
     padding: 10px;
     margin-top: 6px;
     border-radius: 8px;
     border: 1px solid #ccc;
 }
+
 button {
     background: #007AFF;
     color: white;
     border: none;
     font-weight: bold;
 }
+
 .set {
     display: flex;
     gap: 6px;
 }
+
 .set input {
-    flex: 1;
+    min-width: 0;
 }
+
 .small {
     font-size: 12px;
     color: gray;
 }
+
 .exercise-preview {
     font-size: 12px;
     color: #8e8e93;
@@ -54,7 +71,63 @@ button {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+    <style>
+/* --- NEW: compact row layout + small buttons --- */
+.row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.row > input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.btn-icon {
+  width: auto !important;
+  flex: 0 0 auto;
+  padding: 10px 12px;
+}
+
+.btn-danger {
+  background: #ff3b30 !important;
+}
+
+.last-used {
+  margin-top: 4px;
+  color: #8e8e93;
+  font-size: 12px;
+}
+
+/* Ensure set rows stay inside card */
+.set {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.set input {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.set .btn-icon {
+  padding: 10px 10px;
+}
+    .picker-item{
+  width:100%;
+  text-align:left;
+  background:#f2f2f7;
+  border:1px solid #e5e5ea;
+  color:#111;
+  margin-top:6px;
+  font-weight:600;
+}
+.picker-item:active{ opacity:.85; }
+
 </style>
+
 </head>
 
 <body>
@@ -67,134 +140,278 @@ button {
 </div>
 
 <div id="workouts"></div>
-
+<div id="pickerOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); padding:16px; z-index:9999;">
+  <div style="background:#fff; border-radius:12px; padding:12px; max-width:520px; margin:40px auto;">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <input id="pickerSearch" placeholder="Search exercises..." style="flex:1;">
+      <button class="btn-icon btn-danger" onclick="closePicker()">✕</button>
+    </div>
+    <div id="pickerList" style="margin-top:10px; max-height:55vh; overflow:auto;"></div>
+  </div>
+</div>
 <script>
 let workouts = JSON.parse(localStorage.getItem("workouts")) || [];
 let expandedWorkout = null;
+let focusExercise = null;
+
 const workoutsDiv = document.getElementById("workouts");
 
+// ----- Picker state -----
+let pickerTarget = null; // { wi, ei }
+let exerciseLibrary = []; // [{name, count}]
+const pickerOverlay = document.getElementById("pickerOverlay");
+const pickerSearch  = document.getElementById("pickerSearch");
+const pickerList    = document.getElementById("pickerList");
+
 function save() {
-    localStorage.setItem("workouts", JSON.stringify(workouts));
-    render();
+  localStorage.setItem("workouts", JSON.stringify(workouts));
+  render();
 }
 
 function addWorkout() {
-    const name = workoutName.value.trim();
-    if (!name) return;
+  const name = workoutName.value.trim();
+  if (!name) return;
 
-    workouts.unshift({
-        date: new Date().toISOString().split("T")[0],
-        name,
-        exercises: []
-    });
-    workoutName.value = "";
-    save();
+  workouts.unshift({
+    date: new Date().toISOString().split("T")[0],
+    name,
+    exercises: []
+  });
+
+  workoutName.value = "";
+  expandedWorkout = 0;
+  save();
 }
 
 function deleteWorkout(index) {
-    if (!confirm("Delete this workout?")) return;
-    workouts.splice(index, 1);
-    expandedWorkout = null;
-    save();
+  if (!confirm("Delete this workout?")) return;
+  workouts.splice(index, 1);
+  expandedWorkout = null;
+  save();
 }
 
 function addExercise(wIndex) {
-    workouts[wIndex].exercises.push({
-        name: "Exercise",
-        sets: []
-    });
-    save();
+  workouts[wIndex].exercises.push({ name: "", sets: [] });
+
+  focusExercise = { workout: wIndex, exercise: workouts[wIndex].exercises.length - 1 };
+  save();
+}
+
+function deleteExercise(wIndex, eIndex) {
+  if (!confirm("Delete this exercise (and all its sets)?")) return;
+  workouts[wIndex].exercises.splice(eIndex, 1);
+  save();
 }
 
 function addSet(wIndex, eIndex) {
-    workouts[wIndex].exercises[eIndex].sets.push({
-        weight: "",
-        reps: ""
-    });
-    save();
+  workouts[wIndex].exercises[eIndex].sets.push({ weight: "", reps: "" });
+  save();
+}
+
+function deleteSet(wIndex, eIndex, sIndex) {
+  workouts[wIndex].exercises[eIndex].sets.splice(sIndex, 1);
+  save();
 }
 
 function toggleWorkout(index) {
-    expandedWorkout = expandedWorkout === index ? null : index;
-    render();
+  expandedWorkout = expandedWorkout === index ? null : index;
+  render();
 }
 
+// ----- Last used helper -----
+function normName(name) {
+  return (name || "").trim().toLowerCase();
+}
+
+function findLastUsed(wIndex, exerciseName) {
+  const target = normName(exerciseName);
+  if (!target) return null;
+
+  for (let wi = 0; wi < workouts.length; wi++) {
+    if (wi === wIndex) continue;
+
+    const w = workouts[wi];
+    for (let ei = 0; ei < (w.exercises || []).length; ei++) {
+      const ex = w.exercises[ei];
+      if (normName(ex.name) !== target) continue;
+
+      const sets = ex.sets || [];
+      for (let si = sets.length - 1; si >= 0; si--) {
+        const wt = (sets[si].weight || "").trim();
+        const rp = (sets[si].reps || "").trim();
+        if (!wt && !rp) continue;
+
+        if (wt && rp) return `${wt} x ${rp}`;
+        if (wt) return `${wt}`;
+        return `x ${rp}`;
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
+// ----- Build exercise library for picker (frequency-based) -----
+function buildExerciseLibrary() {
+  const counts = new Map();
+  workouts.forEach(w => {
+    (w.exercises || []).forEach(e => {
+      const n = (e.name || "").trim();
+      if (!n) return;
+      const key = n.toLowerCase();
+      counts.set(key, { name: n, count: (counts.get(key)?.count || 0) + 1 });
+    });
+  });
+
+  exerciseLibrary = Array.from(counts.values())
+    .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+function openPicker(wi, ei) {
+  pickerTarget = { wi, ei };
+  buildExerciseLibrary();
+
+  pickerSearch.value = "";
+  renderPickerList("");
+  pickerOverlay.style.display = "block";
+
+  setTimeout(() => pickerSearch.focus(), 0);
+}
+
+function closePicker() {
+  pickerOverlay.style.display = "none";
+  pickerTarget = null;
+}
+
+function renderPickerList(query) {
+  const q = (query || "").trim().toLowerCase();
+  const items = exerciseLibrary
+    .filter(x => !q || x.name.toLowerCase().includes(q))
+    .slice(0, 50);
+
+  pickerList.innerHTML = items.length
+    ? items.map(x =>
+        `<button class="picker-item" onclick="pickExercise(${encodeURIComponent(JSON.stringify(x.name))})">${x.name}</button>`
+      ).join("")
+    : `<div class="small" style="padding:10px;">No matches yet. Type a new exercise name.</div>`;
+}
+
+// Called by button click from picker list (string is encoded)
+function pickExercise(encodedName) {
+  const name = JSON.parse(decodeURIComponent(encodedName));
+  if (!pickerTarget) return;
+
+  workouts[pickerTarget.wi].exercises[pickerTarget.ei].name = name;
+  closePicker();
+  save();
+
+  // focus that exercise input after setting
+  const inputId = `ex-${pickerTarget?.wi}-${pickerTarget?.ei}`;
+  setTimeout(() => document.getElementById(inputId)?.focus(), 0);
+}
+
+// live search
+pickerSearch?.addEventListener("input", (e) => renderPickerList(e.target.value));
+// tap outside modal to close
+pickerOverlay?.addEventListener("click", (e) => { if (e.target === pickerOverlay) closePicker(); });
+
 function render() {
-    workoutsDiv.innerHTML = "";
+  workoutsDiv.innerHTML = "";
 
-    workouts.forEach((w, wi) => {
-        const wDiv = document.createElement("div");
-        wDiv.className = "card";
-        const isOpen = expandedWorkout === wi;
+  workouts.forEach((w, wi) => {
+    const wDiv = document.createElement("div");
+    wDiv.className = "card";
+    const isOpen = expandedWorkout === wi;
 
-        const exerciseNames = w.exercises
-            .map(e => e.name)
-            .filter(n => n.trim() !== "")
-            .join(", ");
+    const exerciseNames = (w.exercises || [])
+      .map(e => (e.name || "").trim())
+      .filter(n => n !== "")
+      .join(", ");
 
-        wDiv.innerHTML = `
-            <div onclick="toggleWorkout(${wi})"
-                 style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">
-                <div>
-                    <strong>${w.name}</strong><br>
-                    <span class="small">${w.date}</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px">
-                    ${!isOpen && exerciseNames ? 
-                        `<div class="exercise-preview">${exerciseNames}</div>` : ""}
-                    <div style="font-size:18px;transform:rotate(${isOpen ? 180 : 0}deg)">
-                        ▼
-                    </div>
-                </div>
-            </div>
+    wDiv.innerHTML = `
+      <div onclick="toggleWorkout(${wi})"
+           style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+        <div>
+          <strong>${w.name}</strong><br>
+          <span class="small">${w.date}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${!isOpen && exerciseNames ? `<div class="exercise-preview">${exerciseNames}</div>` : ""}
+          <div style="font-size:18px;transform:rotate(${isOpen ? 180 : 0}deg)">▼</div>
+        </div>
+      </div>
+    `;
+
+    if (isOpen) {
+      const controls = document.createElement("div");
+      controls.innerHTML = `
+        <label class="small">Workout Date</label>
+        <input type="date" value="${w.date}"
+               onchange="workouts[${wi}].date=this.value;save()">
+
+        <button onclick="addExercise(${wi})">Add Exercise</button>
+        <button onclick="deleteWorkout(${wi})" class="btn-danger" style="margin-top:6px">
+          Delete Workout
+        </button>
+      `;
+      wDiv.appendChild(controls);
+
+      (w.exercises || []).forEach((e, ei) => {
+        const eDiv = document.createElement("div");
+        const inputId = `ex-${wi}-${ei}`;
+        const lastUsed = findLastUsed(wi, e.name);
+
+        eDiv.innerHTML = `
+          <div class="row">
+            <input id="${inputId}"
+                   placeholder="Exercise name"
+                   value="${e.name || ""}"
+                   onchange="workouts[${wi}].exercises[${ei}].name=this.value;save()">
+            <button class="btn-icon" onclick="openPicker(${wi},${ei})" title="Pick exercise">Pick</button>
+            <button class="btn-icon btn-danger"
+                    onclick="deleteExercise(${wi},${ei})"
+                    title="Delete exercise">✕</button>
+          </div>
+          ${lastUsed ? `<div class="last-used">Last: ${lastUsed}</div>` : ``}
+          <button onclick="addSet(${wi},${ei})">Add Set</button>
         `;
 
-        if (isOpen) {
-            const controls = document.createElement("div");
-            controls.innerHTML = `
-                <label class="small">Workout Date</label>
-                <input type="date" value="${w.date}"
-                    onchange="workouts[${wi}].date=this.value;save()">
+        (e.sets || []).forEach((s, si) => {
+          const sDiv = document.createElement("div");
+          sDiv.className = "set";
+          sDiv.innerHTML = `
+            <input placeholder="Weight"
+                   value="${(s.weight || "")}"
+                   onchange="workouts[${wi}].exercises[${ei}].sets[${si}].weight=this.value;save()">
+            <input placeholder="Reps"
+                   value="${(s.reps || "")}"
+                   onchange="workouts[${wi}].exercises[${ei}].sets[${si}].reps=this.value;save()">
+            <button class="btn-icon btn-danger"
+                    onclick="deleteSet(${wi},${ei},${si})"
+                    title="Delete set">✕</button>
+          `;
+          eDiv.appendChild(sDiv);
+        });
 
-                <button onclick="addExercise(${wi})">Add Exercise</button>
-                <button onclick="deleteWorkout(${wi})"
-                        style="background:#ff3b30;margin-top:6px">
-                    Delete Workout
-                </button>
-            `;
-            wDiv.appendChild(controls);
+        wDiv.appendChild(eDiv);
 
-            w.exercises.forEach((e, ei) => {
-                const eDiv = document.createElement("div");
-                eDiv.innerHTML = `
-                    <input value="${e.name}"
-                        onchange="workouts[${wi}].exercises[${ei}].name=this.value;save()">
-                    <button onclick="addSet(${wi},${ei})">Add Set</button>
-                `;
-
-                e.sets.forEach((s, si) => {
-                    const sDiv = document.createElement("div");
-                    sDiv.className = "set";
-                    sDiv.innerHTML = `
-                        <input placeholder="Weight" value="${s.weight}"
-                            onchange="workouts[${wi}].exercises[${ei}].sets[${si}].weight=this.value;save()">
-                        <input placeholder="Reps" value="${s.reps}"
-                            onchange="workouts[${wi}].exercises[${ei}].sets[${si}].reps=this.value;save()">
-                    `;
-                    eDiv.appendChild(sDiv);
-                });
-
-                wDiv.appendChild(eDiv);
-            });
+        // Auto-focus newly added exercise name
+        if (focusExercise && focusExercise.workout === wi && focusExercise.exercise === ei) {
+          setTimeout(() => {
+            document.getElementById(inputId)?.focus();
+            focusExercise = null;
+          }, 0);
         }
+      });
+    }
 
-        workoutsDiv.appendChild(wDiv);
-    });
+    workoutsDiv.appendChild(wDiv);
+  });
 }
 
 render();
 </script>
 
-
 </body>
 </html>
+
