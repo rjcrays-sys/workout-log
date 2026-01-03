@@ -13,25 +13,39 @@
 
 
 <style>
-body {
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background: #f2f2f7;
+/* ---------- Background ---------- */
+body.bg {
     margin: 0;
+    min-height: 100vh;
+    background:
+        linear-gradient(
+            rgba(242,242,247,0.9),
+            rgba(242,242,247,0.9)
+        ),
+        url("assets/background.png") center / cover no-repeat fixed;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* App container */
+.app-shell {
     padding: 16px;
 }
 
+/* ---------- Typography ---------- */
 h1 {
     text-align: center;
 }
 
+/* ---------- Cards ---------- */
 .card {
-    background: white;
+    background: rgba(255,255,255,0.94);
     padding: 12px;
     margin-bottom: 12px;
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
 }
 
+/* ---------- Inputs & Buttons ---------- */
 input, button {
     width: 100%;
     box-sizing: border-box;
@@ -48,89 +62,71 @@ button {
     font-weight: bold;
 }
 
-.set {
-    display: flex;
-    gap: 6px;
+button:active {
+    opacity: 0.85;
 }
 
-.set input {
+/* ---------- Rows & Sets ---------- */
+.row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.row > input {
+    flex: 1;
     min-width: 0;
 }
 
+.set {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.set input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ---------- Buttons ---------- */
+.btn-icon {
+    width: auto !important;
+    padding: 10px 12px;
+}
+
+.btn-danger {
+    background: #ff3b30 !important;
+}
+
+/* ---------- Text helpers ---------- */
 .small {
     font-size: 12px;
-    color: gray;
+    color: #6e6e73;
 }
 
 .exercise-preview {
     font-size: 12px;
     color: #8e8e93;
-    text-align: right;
     max-width: 140px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-    <style>
-/* --- NEW: compact row layout + small buttons --- */
-.row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.row > input {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.btn-icon {
-  width: auto !important;
-  flex: 0 0 auto;
-  padding: 10px 12px;
-}
-
-.btn-danger {
-  background: #ff3b30 !important;
-}
 
 .last-used {
-  margin-top: 4px;
-  color: #8e8e93;
-  font-size: 12px;
+    margin-top: 4px;
+    color: #8e8e93;
+    font-size: 12px;
 }
-
-/* Ensure set rows stay inside card */
-.set {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-}
-
-.set input {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-.set .btn-icon {
-  padding: 10px 10px;
-}
-    .picker-item{
-  width:100%;
-  text-align:left;
-  background:#f2f2f7;
-  border:1px solid #e5e5ea;
-  color:#111;
-  margin-top:6px;
-  font-weight:600;
-}
-.picker-item:active{ opacity:.85; }
-
 </style>
+
 
 </head>
 
-<body>
+<body class="bg">
+  <div class="app-shell">
+
 
 <h1>Workout Log</h1>
 
@@ -412,6 +408,9 @@ function render() {
 render();
 </script>
 
+  </div>
 </body>
+
 </html>
+
 
