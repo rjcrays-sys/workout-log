@@ -1,1 +1,0 @@
-Easy logging of workouts
